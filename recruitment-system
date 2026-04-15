@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>選考歩留まり管理システム</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',Meiryo,sans-serif;background:#f5f5f3;color:#1a1a1a;font-size:14px;}
+.app{max-width:1400px;margin:0 auto;padding:24px 16px;}
+h1{font-size:18px;font-weight:500;margin-bottom:20px;color:#1a1a1a;}
+.nav{display:flex;gap:2px;margin-bottom:24px;border-bottom:1px solid #e0e0dc;padding-bottom:0;}
+.nav-btn{padding:8px 18px;font-size:13px;border:none;background:transparent;color:#666;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;}
+.nav-btn.active{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:500;}
+.nav-btn:hover:not(.active){color:#1a1a1a;background:#f0f0ee;}
+.page{display:none;}
+.page.active{display:block;}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px;}
+.metric-card{background:#fff;border:1px solid #e8e8e4;border-radius:8px;padding:14px 16px;}
+.metric-label{font-size:11px;color:#888;margin-bottom:6px;}
+.metric-val{font-size:24px;font-weight:500;}
+.metric-sub{font-size:11px;color:#aaa;margin-top:3px;}
+.card{background:#fff;border:1px solid #e8e8e4;border-radius:10px;padding:16px 20px;margin-bottom:16px;}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f0f0ec;}
+.card-title{font-size:13px;font-weight:500;color:#555;}
+.scroll-x{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{font-weight:500;font-size:11px;color:#888;text-align:right;padding:6px 8px;border-bottom:1px solid #f0f0ec;white-space:nowrap;background:#fafaf8;}
+th:first-child,th:nth-child(2){text-align:left;}
+td{padding:8px 8px;text-align:right;border-bottom:1px solid #f7f7f5;white-space:nowrap;color:#1a1a1a;}
+td:first-child,td:nth-child(2){text-align:left;}
+tr:last-child td{border-bottom:none;}
+tr.kpi-row:hover td{background:#fafaf8;}
+tr.kpi-row.dragging{opacity:.4;}
+tr.kpi-row.drag-over td{background:#e8f0fe!important;}
+.diff-neg{color:#b91c1c;font-weight:500;}
+.diff-zero{color:#1a1a1a;}
+.diff-pos{color:#1d4ed8;font-weight:500;}
+.drag-handle{cursor:grab;color:#bbb;font-size:14px;padding:0 4px;user-select:none;}
+.drag-handle:active{cursor:grabbing;}
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500;}
+.badge-red{background:#fee2e2;color:#991b1b;}
+.badge-green{background:#dcfce7;color:#166534;}
+.badge-gray{background:#f3f4f6;color:#4b5563;}
+.btn{padding:7px 16px;font-size:13px;border:1px solid #d1d1cc;border-radius:6px;background:#fff;color:#1a1a1a;cursor:pointer;font-weight:500;transition:all .1s;}
+.btn:hover{background:#f5f5f3;}
+.btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
+.btn-primary:hover{background:#333;}
+.btn-danger{border-color:#fca5a5;color:#b91c1c;}
+.btn-danger:hover{background:#fee2e2;}
+.btn-sm{padding:4px 10px;font-size:11px;}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15);}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f0f0ec;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.form-group{display:flex;flex-direction:column;gap:4px;}
+.form-group label{font-size:11px;color:#777;}
+.form-group input{font-size:13px;padding:7px 10px;border:1px solid #d1d1cc;border-radius:6px;background:#fff;color:#1a1a1a;width:100%;}
+.form-group input:focus{outline:none;border-color:#1a1a1a;box-shadow:0 0 0 2px rgba(0,0,0,.08);}
+.form-full{grid-column:1/-1;}
+.form-section{font-size:11px;font-weight:500;color:#777;grid-column:1/-1;padding:10px 0 4px;border-top:1px solid #f0f0ec;margin-top:6px;}
+.funnel-bar-wrap{margin-bottom:10px;}
+.funnel-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;color:#666;}
+.funnel-track{height:16px;background:#f3f4f6;border-radius:4px;overflow:hidden;position:relative;}
+.funnel-bar-target{height:100%;border-radius:4px;opacity:.25;position:absolute;top:0;left:0;}
+.funnel-bar{height:100%;border-radius:4px;}
+.analysis-box{background:#fafaf8;border:1px solid #f0f0ec;border-radius:8px;padding:12px 14px;margin-bottom:8px;}
+.action-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #f7f7f5;font-size:12px;}
+.action-row:last-child{border-bottom:none;}
+.action-step{min-width:100px;}
+.action-detail{color:#666;line-height:1.6;flex:1;}
+.priority-tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:4px;font-weight:500;margin-right:4px;}
+.priority-high{background:#fee2e2;color:#991b1b;}
+.priority-mid{background:#fef3c7;color:#92400e;}
+.priority-low{background:#dcfce7;color:#166534;}
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:200;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+.loading{text-align:center;padding:40px;color:#aaa;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>選考歩留まり管理システム</h1>
+  <div class="nav">
+    <button class="nav-btn active" onclick="showPage('dashboard',this)">ダッシュボード</button>
+    <button class="nav-btn" onclick="showPage('funnel',this)">ファネル分析</button>
+    <button class="nav-btn" onclick="showPage('action',this)">アクション提案</button>
+  </div>
+
+  <div id="page-dashboard" class="page active">
+    <div class="metric-grid" id="summary-metrics"><div class="loading">読み込み中...</div></div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">企業別 KPI 目標達成状況</span>
+        <button class="btn btn-primary btn-sm" onclick="openModal(null)">+ 企業追加</button>
+      </div>
+      <div class="scroll-x">
+        <table><thead><tr id="kpi-head"></tr></thead><tbody id="kpi-body"><tr><td colspan="30" class="loading">読み込み中...</td></tr></tbody></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">企業別 選考率一覧（自動計算）</span></div>
+      <div class="scroll-x">
+        <table><thead><tr id="rate-head"></tr></thead><tbody id="rate-body"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div id="page-funnel" class="page">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <label style="font-size:13px;color:#666;">企業選択：</label>
+      <select id="funnel-select" onchange="renderFunnel()" style="font-size:13px;padding:6px 10px;border:1px solid #d1d1cc;border-radius:6px;background:#fff;color:#1a1a1a;"></select>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">応募→決定 歩留まりファネル（目標 vs 実績）</span></div>
+      <div id="funnel-bars"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">ボトルネック自動検出</span></div>
+      <div id="bottleneck-analysis"></div>
+    </div>
+  </div>
+
+  <div id="page-action" class="page">
+    <div class="card">
+      <div class="card-header"><span class="card-title">ボトルネック別 改善アクション</span></div>
+      <div id="action-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">企業別 課題サマリー</span></div>
+      <div id="action-company-list"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">企業データ登録</div>
+    <div class="form-grid" id="modal-fields"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="saveCompany()">保存</button>
+      <button class="btn" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://vfawlsqeyjbnxxabzjxg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_sXnyYYCsBCW7d2tAJrplDg_uhR-ugfx';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let companies = [];
+let editId = null;
+let dragSrcIdx = null;
+
+const KPI_LABELS = {
+  applications:'応募数', first:'一次面接数', second:'二次面接数',
+  final:'最終面接数', offers:'内定数', decisions:'決定数', revenue:'売上(万円)'
+};
+const KPI_DB = {
+  applications:['app_target','app_actual'],
+  first:['first_target','first_actual'],
+  second:['second_target','second_actual'],
+  final:['final_target','final_actual'],
+  offers:['offers_target','offers_actual'],
+  decisions:['decisions_target','decisions_actual'],
+  revenue:['revenue_target','revenue_actual']
+};
+const RATE_DEFS = [
+  {key:'応募率',fn:(c,t)=>safePct(c.kpi.applications[t],c.population[t])},
+  {key:'一次通過率',fn:(c,t)=>safePct(c.kpi.second[t],c.kpi.first[t])},
+  {key:'二次通過率',fn:(c,t)=>safePct(c.kpi.final[t],c.kpi.second[t])},
+  {key:'最終通過率',fn:(c,t)=>safePct(c.kpi.offers[t],c.kpi.final[t])},
+  {key:'内定承諾率',fn:(c,t)=>safePct(c.kpi.decisions[t],c.kpi.offers[t])}
+];
+
+function rowToCompany(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    role: r.role || '',
+    sort_order: r.sort_order || 0,
+    population: { target: r.pop_target||0, actual: r.pop_actual||0 },
+    kpi: {
+      applications:{ target:r.app_target||0, actual:r.app_actual||0 },
+      first:{ target:r.first_target||0, actual:r.first_actual||0 },
+      second:{ target:r.second_target||0, actual:r.second_actual||0 },
+      final:{ target:r.final_target||0, actual:r.final_actual||0 },
+      offers:{ target:r.offers_target||0, actual:r.offers_actual||0 },
+      decisions:{ target:r.decisions_target||0, actual:r.decisions_actual||0 },
+      revenue:{ target:r.revenue_target||0, actual:r.revenue_actual||0 }
+    }
+  };
+}
+
+function companyToRow(c) {
+  return {
+    name: c.name, role: c.role, sort_order: c.sort_order||0,
+    pop_target: c.population.target, pop_actual: c.population.actual,
+    app_target: c.kpi.applications.target, app_actual: c.kpi.applications.actual,
+    first_target: c.kpi.first.target, first_actual: c.kpi.first.actual,
+    second_target: c.kpi.second.target, second_actual: c.kpi.second.actual,
+    final_target: c.kpi.final.target, final_actual: c.kpi.final.actual,
+    offers_target: c.kpi.offers.target, offers_actual: c.kpi.offers.actual,
+    decisions_target: c.kpi.decisions.target, decisions_actual: c.kpi.decisions.actual,
+    revenue_target: c.kpi.revenue.target, revenue_actual: c.kpi.revenue.actual
+  };
+}
+
+async function loadCompanies() {
+  const { data, error } = await db.from('companies').select('*').order('sort_order').order('id');
+  if (error) { showToast('データ読み込みエラー: ' + error.message); return; }
+  companies = (data||[]).map(rowToCompany);
+  renderDashboard();
+}
+
+function safePct(n,d){if(!d||d===0)return null;return(n/d)*100;}
+function fmtPct(v){if(v===null||v===undefined)return '-';return v.toFixed(1)+'%';}
+function diffClass(d){if(d===null||d===undefined)return '';if(d<0)return 'diff-neg';if(d===0)return 'diff-zero';return 'diff-pos';}
+function fmtDiff(d){if(d===null||d===undefined)return '-';const c=diffClass(d);const s=d>0?'+':'';return`<span class="${c}">${s}${d}</span>`;}
+function fmtPctDiff(tv,rv){if(tv===null||rv===null||tv===undefined||rv===undefined)return '-';const d=tv-rv;const c=diffClass(d);const s=d>0?'+':'';return`<span class="${c}">${s}${d.toFixed(1)}pt</span>`;}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(id==='funnel') renderFunnelPage();
+  if(id==='action') renderAction();
+}
+
+function openModal(id) {
+  editId = id;
+  const c = id !== null ? companies.find(x=>x.id===id) : null;
+  document.getElementById('modal-title').textContent = c ? `「${c.name}」を編集` : '企業データ新規登録';
+  buildModalForm(c);
+  document.getElementById('modal-bg').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); editId = null; }
+
+function buildModalForm(c) {
+  const kpiKeys = Object.keys(KPI_LABELS);
+  let html = `
+    <div class="form-group form-full"><label>企業名</label><input id="f-name" type="text" placeholder="例：株式会社テクノコア" value="${c?c.name:''}"></div>
+    <div class="form-group"><label>担当（RA/CA）</label><input id="f-role" type="text" placeholder="RA or CA" value="${c?c.role:'RA'}"></div>
+    <div class="form-group"></div>
+    <div class="form-group"><label>母集団（目標）</label><input id="f-pop-t" type="number" min="0" value="${c?c.population.target:''}"></div>
+    <div class="form-group"><label>母集団（実績）</label><input id="f-pop-a" type="number" min="0" value="${c?c.population.actual:''}"></div>
+    <div class="form-section">KPI — 目標 / 実績</div>`;
+  kpiKeys.forEach(k => {
+    html += `<div class="form-group"><label>${KPI_LABELS[k]}（目標）</label><input id="f-${k}-t" type="number" min="0" value="${c?c.kpi[k].target:''}"></div>
+    <div class="form-group"><label>${KPI_LABELS[k]}（実績）</label><input id="f-${k}-a" type="number" min="0" value="${c?c.kpi[k].actual:''}"></div>`;
+  });
+  document.getElementById('modal-fields').innerHTML = html;
+}
+
+async function saveCompany() {
+  const name = document.getElementById('f-name').value.trim();
+  if(!name) { alert('企業名を入力してください'); return; }
+  const role = document.getElementById('f-role').value.trim() || 'RA';
+  const kpiKeys = Object.keys(KPI_LABELS);
+  const kpi = {};
+  kpiKeys.forEach(k => { kpi[k] = { target:+document.getElementById(`f-${k}-t`).value||0, actual:+document.getElementById(`f-${k}-a`).value||0 }; });
+  const row = {
+    name, role,
+    sort_order: editId !== null ? (companies.find(c=>c.id===editId)||{}).sort_order||0 : companies.length,
+    pop_target: +document.getElementById('f-pop-t').value||0,
+    pop_actual: +document.getElementById('f-pop-a').value||0,
+    app_target: kpi.applications.target, app_actual: kpi.applications.actual,
+    first_target: kpi.first.target, first_actual: kpi.first.actual,
+    second_target: kpi.second.target, second_actual: kpi.second.actual,
+    final_target: kpi.final.target, final_actual: kpi.final.actual,
+    offers_target: kpi.offers.target, offers_actual: kpi.offers.actual,
+    decisions_target: kpi.decisions.target, decisions_actual: kpi.decisions.actual,
+    revenue_target: kpi.revenue.target, revenue_actual: kpi.revenue.actual
+  };
+  let error;
+  if(editId !== null) {
+    ({error} = await db.from('companies').update(row).eq('id', editId));
+  } else {
+    ({error} = await db.from('companies').insert(row));
+  }
+  if(error) { showToast('保存エラー: ' + error.message); return; }
+  showToast(editId !== null ? '更新しました' : '企業を追加しました');
+  closeModal();
+  await loadCompanies();
+}
+
+async function deleteCompany(id) {
+  if(!confirm('この企業データを削除しますか？')) return;
+  const {error} = await db.from('companies').delete().eq('id', id);
+  if(error) { showToast('削除エラー: ' + error.message); return; }
+  showToast('削除しました');
+  await loadCompanies();
+}
+
+async function saveOrder() {
+  const updates = companies.map((c,i) => db.from('companies').update({sort_order:i}).eq('id',c.id));
+  await Promise.all(updates);
+}
+
+function initDragDrop() {
+  const rows = document.querySelectorAll('#kpi-body .kpi-row');
+  rows.forEach((row, idx) => {
+    row.addEventListener('dragstart', e => { dragSrcIdx=idx; row.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    row.addEventListener('dragend', () => { row.classList.remove('dragging'); document.querySelectorAll('#kpi-body .kpi-row').forEach(r=>r.classList.remove('drag-over')); });
+    row.addEventListener('dragover', e => { e.preventDefault(); document.querySelectorAll('#kpi-body .kpi-row').forEach(r=>r.classList.remove('drag-over')); row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', async e => {
+      e.preventDefault(); row.classList.remove('drag-over');
+      if(dragSrcIdx===null||dragSrcIdx===idx) return;
+      const moved = companies.splice(dragSrcIdx,1)[0];
+      companies.splice(idx,0,moved);
+      dragSrcIdx = null;
+      renderDashboard();
+      await saveOrder();
+    });
+  });
+}
+
+function renderDashboard() {
+  const totalRevA = companies.reduce((s,c)=>s+c.kpi.revenue.actual,0);
+  const totalRevT = companies.reduce((s,c)=>s+c.kpi.revenue.target,0);
+  const totalDec = companies.reduce((s,c)=>s+c.kpi.decisions.actual,0);
+  const avgUnit = totalDec>0 ? Math.round(totalRevA/totalDec) : 0;
+  const totalApp = companies.reduce((s,c)=>s+c.kpi.applications.actual,0);
+
+  document.getElementById('summary-metrics').innerHTML = `
+    <div class="metric-card"><div class="metric-label">総売上実績（万円）</div><div class="metric-val">${totalRevA.toLocaleString()}</div><div class="metric-sub">目標 ${totalRevT.toLocaleString()}</div></div>
+    <div class="metric-card"><div class="metric-label">総決定数</div><div class="metric-val">${totalDec}</div><div class="metric-sub">目標 ${companies.reduce((s,c)=>s+c.kpi.decisions.target,0)}</div></div>
+    <div class="metric-card"><div class="metric-label">平均単価（万円）</div><div class="metric-val">${avgUnit.toLocaleString()}</div><div class="metric-sub">管理 ${companies.length}社</div></div>
+    <div class="metric-card"><div class="metric-label">総応募数</div><div class="metric-val">${totalApp}</div><div class="metric-sub">目標 ${companies.reduce((s,c)=>s+c.kpi.applications.target,0)}</div></div>`;
+
+  const kpiKeys = Object.keys(KPI_LABELS);
+  let head = '<th style="width:28px;"></th><th>企業名</th>';
+  kpiKeys.forEach(k => { head += `<th colspan="3" style="text-align:center;background:#fafaf8;">${KPI_LABELS[k]}</th>`; });
+  head += '<th></th>';
+  document.getElementById('kpi-head').innerHTML = head;
+
+  let body = `<tr><td></td><td></td>${kpiKeys.map(()=>`<td style="font-size:10px;color:#aaa;text-align:center;">目標</td><td style="font-size:10px;color:#aaa;text-align:center;">実績</td><td style="font-size:10px;color:#aaa;text-align:center;">差異</td>`).join('')}<td></td></tr>`;
+  companies.forEach((c,idx) => {
+    let row = `<tr class="kpi-row" draggable="true">
+      <td style="padding:4px 6px;vertical-align:middle;"><span class="drag-handle" title="ドラッグで並び替え">&#9776;</span></td>
+      <td style="font-weight:500;vertical-align:middle;">${c.name}</td>`;
+    kpiKeys.forEach(k => {
+      const t=c.kpi[k].target, a=c.kpi[k].actual, d=a-t;
+      row += `<td>${t.toLocaleString()}</td><td>${a.toLocaleString()}</td><td>${fmtDiff(d)}</td>`;
+    });
+    row += `<td style="white-space:nowrap;vertical-align:middle;"><button class="btn btn-sm" onclick="openModal(${c.id})">編集</button> <button class="btn btn-danger btn-sm" onclick="deleteCompany(${c.id})">削除</button></td></tr>`;
+    body += row;
+  });
+  if(companies.length === 0) body += '<tr><td colspan="30" style="text-align:center;padding:24px;color:#aaa;">企業データがありません。「+ 企業追加」から登録してください。</td></tr>';
+  document.getElementById('kpi-body').innerHTML = body;
+  initDragDrop();
+
+  let rHead = '<th>企業名</th>';
+  RATE_DEFS.forEach(r => { rHead += `<th colspan="3" style="text-align:center;background:#fafaf8;">${r.key}</th>`; });
+  document.getElementById('rate-head').innerHTML = rHead;
+
+  let rBody = `<tr><td></td>${RATE_DEFS.map(()=>`<td style="font-size:10px;color:#aaa;text-align:center;">目標率</td><td style="font-size:10px;color:#aaa;text-align:center;">実績率</td><td style="font-size:10px;color:#aaa;text-align:center;">差異</td>`).join('')}</tr>`;
+  companies.forEach(c => {
+    let row = `<tr><td style="font-weight:500;">${c.name}</td>`;
+    RATE_DEFS.forEach(r => {
+      const tv=r.fn(c,'target'), rv=r.fn(c,'actual');
+      row += `<td>${fmtPct(tv)}</td><td>${fmtPct(rv)}</td><td>${fmtPctDiff(tv,rv)}</td>`;
+    });
+    row += '</tr>';
+    rBody += row;
+  });
+  document.getElementById('rate-body').innerHTML = rBody;
+}
+
+function renderFunnelPage() {
+  const sel = document.getElementById('funnel-select');
+  const prev = sel.value;
+  sel.innerHTML = companies.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  if(prev) sel.value = prev;
+  renderFunnel();
+}
+
+function renderFunnel() {
+  const id = +document.getElementById('funnel-select').value;
+  const c = companies.find(x=>x.id===id);
+  if(!c) { document.getElementById('funnel-bars').innerHTML=''; return; }
+  const steps = [
+    {label:'応募',k:'applications'},{label:'一次面接',k:'first'},{label:'二次面接',k:'second'},
+    {label:'最終面接',k:'final'},{label:'内定',k:'offers'},{label:'決定',k:'decisions'}
+  ];
+  const maxT=c.kpi.applications.target||1, maxA=c.kpi.applications.actual||1;
+  const COLORS=['#3b82f6','#10b981','#f59e0b','#ec4899','#8b5cf6','#22c55e'];
+  let html='';
+  steps.forEach((s,i) => {
+    const tv=c.kpi[s.k].target, av=c.kpi[s.k].actual;
+    const tpct=Math.min(100,(tv/maxT)*100), apct=Math.min(100,(av/maxA)*100);
+    const diff=av-tv, cls=diff>=0?'diff-pos':'diff-neg', sign=diff>=0?'+':'';
+    html += `<div class="funnel-bar-wrap">
+      <div class="funnel-label"><span>${s.label}</span><span>目標 <b>${tv}</b> ／ 実績 <b>${av}</b> <span class="${cls}">${sign}${diff}</span></span></div>
+      <div class="funnel-track"><div class="funnel-bar-target" style="width:${tpct}%;background:${COLORS[i]};"></div><div class="funnel-bar" style="width:${apct}%;background:${COLORS[i]};"></div></div>
+    </div>`;
+  });
+  document.getElementById('funnel-bars').innerHTML = html;
+
+  const rates = [
+    {label:'応募率',tv:safePct(c.kpi.applications.target,c.population.target),av:safePct(c.kpi.applications.actual,c.population.actual)},
+    {label:'一次通過率',tv:safePct(c.kpi.second.target,c.kpi.first.target),av:safePct(c.kpi.second.actual,c.kpi.first.actual)},
+    {label:'二次通過率',tv:safePct(c.kpi.final.target,c.kpi.second.target),av:safePct(c.kpi.final.actual,c.kpi.second.actual)},
+    {label:'最終通過率',tv:safePct(c.kpi.offers.target,c.kpi.final.target),av:safePct(c.kpi.offers.actual,c.kpi.final.actual)},
+    {label:'内定承諾率',tv:safePct(c.kpi.decisions.target,c.kpi.offers.target),av:safePct(c.kpi.decisions.actual,c.kpi.offers.actual)}
+  ];
+  let bn='';
+  rates.forEach(r => {
+    if(r.tv!==null&&r.av!==null){
+      const gap=r.av-r.tv;
+      if(gap<=-10) bn+=`<div class="action-row"><div class="action-step"><span class="badge badge-red">${r.label}</span></div><div class="action-detail">目標比 <b style="color:#b91c1c;">${gap.toFixed(1)}pt</b> 未達。優先改善対象。</div></div>`;
+      else if(gap<0) bn+=`<div class="action-row"><div class="action-step"><span class="badge badge-gray">${r.label}</span></div><div class="action-detail">目標比 ${gap.toFixed(1)}pt やや未達。要注視。</div></div>`;
+      else bn+=`<div class="action-row"><div class="action-step"><span class="badge badge-green">${r.label}</span></div><div class="action-detail">目標達成（${gap.toFixed(1)}pt）</div></div>`;
+    }
+  });
+  document.getElementById('bottleneck-analysis').innerHTML = bn||'<p style="font-size:12px;color:#aaa;padding:8px 0;">分析対象データが不足しています</p>';
+}
+
+function renderAction() {
+  const actionMap = [
+    {step:'応募数不足',cond:c=>c.kpi.applications.actual<c.kpi.applications.target*0.8,
+     actions:[['優先','母集団リスト追加・媒体見直し・スカウト強化'],['推奨','RAとCAの訴求ポイント再確認MTG'],['補足','求人票の魅力度向上（給与・ポジション訴求）']]},
+    {step:'一次通過率低',cond:c=>{const r=safePct(c.kpi.second.actual,c.kpi.first.actual),t=safePct(c.kpi.second.target,c.kpi.first.target);return r!==null&&t!==null&&(r-t)<-10;},
+     actions:[['優先','推薦文の精度向上・マッチング基準の再明確化'],['推奨','面接前CAウォームアップ強化・志望度確認コール'],['補足','企業の選考基準ヒアリング再実施']]},
+    {step:'二次通過率低',cond:c=>{const r=safePct(c.kpi.final.actual,c.kpi.second.actual),t=safePct(c.kpi.final.target,c.kpi.second.target);return r!==null&&t!==null&&(r-t)<-10;},
+     actions:[['優先','二次面接後フィード収集と原因分析'],['推奨','スキルギャップの早期特定と対策'],['補足','候補者の懸念点解消ロールプレイ']]},
+    {step:'内定承諾率低',cond:c=>{const r=safePct(c.kpi.decisions.actual,c.kpi.offers.actual),t=safePct(c.kpi.decisions.target,c.kpi.offers.target);return r!==null&&t!==null&&(r-t)<-10;},
+     actions:[['優先','内定後24時間以内クロージング'],['推奨','競合オファー状況ヒアリングと対策'],['補足','入社後キャリアイメージ明確化面談']]}
+  ];
+  let html='';
+  actionMap.forEach(a => {
+    html += `<div class="analysis-box"><div style="font-size:12px;font-weight:500;margin-bottom:6px;"><span class="badge badge-red">${a.step}</span></div><div style="font-size:11px;color:#666;line-height:1.9;">`;
+    a.actions.forEach(([p,txt]) => {
+      const cls=p==='優先'?'priority-high':p==='推奨'?'priority-mid':'priority-low';
+      html += `<span class="priority-tag ${cls}">${p}</span>${txt}<br>`;
+    });
+    html += `</div></div>`;
+  });
+  document.getElementById('action-list').innerHTML = html;
+
+  let cHtml='';
+  companies.forEach(c => {
+    const issues=[];
+    if(c.kpi.applications.actual<c.kpi.applications.target*0.8) issues.push('応募数不足');
+    const r1=safePct(c.kpi.second.actual,c.kpi.first.actual),t1=safePct(c.kpi.second.target,c.kpi.first.target);
+    if(r1!==null&&t1!==null&&(r1-t1)<-10) issues.push('一次通過率低');
+    const r2=safePct(c.kpi.final.actual,c.kpi.second.actual),t2=safePct(c.kpi.final.target,c.kpi.second.target);
+    if(r2!==null&&t2!==null&&(r2-t2)<-10) issues.push('二次通過率低');
+    const r3=safePct(c.kpi.decisions.actual,c.kpi.offers.actual),t3=safePct(c.kpi.decisions.target,c.kpi.offers.target);
+    if(r3!==null&&t3!==null&&(r3-t3)<-10) issues.push('承諾率低');
+    const revD=c.kpi.revenue.actual-c.kpi.revenue.target;
+    const decD=c.kpi.decisions.actual-c.kpi.decisions.target;
+    cHtml += `<div class="analysis-box">
+      <div style="font-size:12px;font-weight:500;margin-bottom:4px;">${c.name}</div>
+      <div style="font-size:11px;line-height:1.9;">
+        ${issues.length?issues.map(i=>`<span class="badge badge-red">${i}</span>`).join(' '):'<span class="badge badge-green">課題なし</span>'}<br>
+        <span style="color:#888;">売上差異: </span><span class="${revD>=0?'diff-pos':'diff-neg'}">${revD>=0?'+':''}${revD.toLocaleString()}万円</span>
+        <span style="color:#888;margin-left:14px;">決定数差異: </span><span class="${decD>=0?'diff-pos':'diff-neg'}">${decD>=0?'+':''}${decD}件</span>
+      </div>
+    </div>`;
+  });
+  document.getElementById('action-company-list').innerHTML = cHtml || '<p style="font-size:12px;color:#aaa;">企業データがありません</p>';
+}
+
+loadCompanies();
+</script>
+</body>
+</html>

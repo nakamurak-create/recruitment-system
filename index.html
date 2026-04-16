@@ -9,8 +9,13 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',Meiryo,sans-serif;background:#f5f5f3;color:#1a1a1a;font-size:14px;}
 .app{max-width:1400px;margin:0 auto;padding:24px 16px;}
-h1{font-size:18px;font-weight:500;margin-bottom:20px;color:#1a1a1a;}
-.nav{display:flex;gap:2px;margin-bottom:24px;border-bottom:1px solid #e0e0dc;padding-bottom:0;}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
+h1{font-size:18px;font-weight:500;color:#1a1a1a;}
+.month-nav{display:flex;align-items:center;gap:8px;}
+.month-nav button{padding:5px 10px;font-size:13px;border:1px solid #d1d1cc;border-radius:6px;background:#fff;color:#1a1a1a;cursor:pointer;}
+.month-nav button:hover{background:#f5f5f3;}
+.month-label{font-size:15px;font-weight:500;min-width:100px;text-align:center;}
+.nav{display:flex;gap:2px;margin-bottom:24px;border-bottom:1px solid #e0e0dc;}
 .nav-btn{padding:8px 18px;font-size:13px;border:none;background:transparent;color:#666;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;}
 .nav-btn.active{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:500;}
 .nav-btn:hover:not(.active){color:#1a1a1a;background:#f0f0ee;}
@@ -53,7 +58,8 @@ tr.kpi-row.drag-over td{background:#e8f0fe!important;}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;}
 .modal-bg.open{display:flex;}
 .modal{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15);}
-.modal-title{font-size:15px;font-weight:500;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f0f0ec;}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:4px;padding-bottom:12px;border-bottom:1px solid #f0f0ec;}
+.modal-sub{font-size:11px;color:#aaa;margin-bottom:12px;}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .form-group{display:flex;flex-direction:column;gap:4px;}
 .form-group label{font-size:11px;color:#777;}
@@ -78,11 +84,20 @@ tr.kpi-row.drag-over td{background:#e8f0fe!important;}
 .toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:200;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;}
 .toast.show{opacity:1;transform:translateY(0);}
 .loading{text-align:center;padding:40px;color:#aaa;font-size:13px;}
+.no-data-badge{display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;background:#fef3c7;color:#92400e;font-weight:500;margin-left:5px;vertical-align:middle;}
 </style>
 </head>
 <body>
 <div class="app">
-  <h1>選考歩留まり管理システム</h1>
+  <div class="top-bar">
+    <h1>選考歩留まり管理システム</h1>
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)">&#8592; 前月</button>
+      <span class="month-label" id="month-label"></span>
+      <button onclick="changeMonth(1)">翌月 &#8594;</button>
+    </div>
+  </div>
+
   <div class="nav">
     <button class="nav-btn active" onclick="showPage('dashboard',this)">ダッシュボード</button>
     <button class="nav-btn" onclick="showPage('funnel',this)">ファネル分析</button>
@@ -109,12 +124,12 @@ tr.kpi-row.drag-over td{background:#e8f0fe!important;}
   </div>
 
   <div id="page-funnel" class="page">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
       <label style="font-size:13px;color:#666;">企業選択：</label>
       <select id="funnel-select" onchange="renderFunnel()" style="font-size:13px;padding:6px 10px;border:1px solid #d1d1cc;border-radius:6px;background:#fff;color:#1a1a1a;"></select>
     </div>
     <div class="card">
-      <div class="card-header"><span class="card-title">応募→決定 歩留まりファネル（目標 vs 実績）</span></div>
+      <div class="card-header"><span class="card-title" id="funnel-title">応募→決定 歩留まりファネル（目標 vs 実績）</span></div>
       <div id="funnel-bars"></div>
     </div>
     <div class="card">
@@ -135,13 +150,27 @@ tr.kpi-row.drag-over td{background:#e8f0fe!important;}
   </div>
 </div>
 
+<!-- 企業マスタ モーダル -->
 <div class="modal-bg" id="modal-bg">
   <div class="modal">
-    <div class="modal-title" id="modal-title">企業データ登録</div>
+    <div class="modal-title" id="modal-title">企業登録</div>
     <div class="form-grid" id="modal-fields"></div>
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button class="btn btn-primary" onclick="saveCompany()">保存</button>
       <button class="btn" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- 月次KPI モーダル -->
+<div class="modal-bg" id="kpi-modal-bg">
+  <div class="modal">
+    <div class="modal-title" id="kpi-modal-title">月次KPI入力</div>
+    <div class="modal-sub" id="kpi-modal-sub"></div>
+    <div class="form-grid" id="kpi-modal-fields"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="saveMonthlyKpi()">保存</button>
+      <button class="btn" onclick="closeKpiModal()">キャンセル</button>
     </div>
   </div>
 </div>
@@ -155,271 +184,324 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let companies = [];
+let monthlyData = {};
 let editId = null;
+let editKpiCompanyId = null;
 let dragSrcIdx = null;
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth() + 1;
 
 const KPI_LABELS = {
   applications:'応募数', first:'一次面接数', second:'二次面接数',
   final:'最終面接数', offers:'内定数', decisions:'決定数', revenue:'売上(万円)'
 };
-const KPI_DB = {
-  applications:['app_target','app_actual'],
-  first:['first_target','first_actual'],
-  second:['second_target','second_actual'],
-  final:['final_target','final_actual'],
-  offers:['offers_target','offers_actual'],
-  decisions:['decisions_target','decisions_actual'],
-  revenue:['revenue_target','revenue_actual']
-};
 const RATE_DEFS = [
-  {key:'応募率',fn:(c,t)=>safePct(c.kpi.applications[t],c.population[t])},
-  {key:'一次通過率',fn:(c,t)=>safePct(c.kpi.second[t],c.kpi.first[t])},
-  {key:'二次通過率',fn:(c,t)=>safePct(c.kpi.final[t],c.kpi.second[t])},
-  {key:'最終通過率',fn:(c,t)=>safePct(c.kpi.offers[t],c.kpi.final[t])},
-  {key:'内定承諾率',fn:(c,t)=>safePct(c.kpi.decisions[t],c.kpi.offers[t])}
+  {key:'応募率',fn:(kpi,pop,t)=>safePct(kpi.applications[t],pop[t])},
+  {key:'一次通過率',fn:(kpi,pop,t)=>safePct(kpi.second[t],kpi.first[t])},
+  {key:'二次通過率',fn:(kpi,pop,t)=>safePct(kpi.final[t],kpi.second[t])},
+  {key:'最終通過率',fn:(kpi,pop,t)=>safePct(kpi.offers[t],kpi.final[t])},
+  {key:'内定承諾率',fn:(kpi,pop,t)=>safePct(kpi.decisions[t],kpi.offers[t])}
 ];
 
-function rowToCompany(r) {
-  return {
-    id: r.id,
-    name: r.name,
-    role: r.role || '',
-    sort_order: r.sort_order || 0,
-    population: { target: r.pop_target||0, actual: r.pop_actual||0 },
-    kpi: {
-      applications:{ target:r.app_target||0, actual:r.app_actual||0 },
-      first:{ target:r.first_target||0, actual:r.first_actual||0 },
-      second:{ target:r.second_target||0, actual:r.second_actual||0 },
-      final:{ target:r.final_target||0, actual:r.final_actual||0 },
-      offers:{ target:r.offers_target||0, actual:r.offers_actual||0 },
-      decisions:{ target:r.decisions_target||0, actual:r.decisions_actual||0 },
-      revenue:{ target:r.revenue_target||0, actual:r.revenue_actual||0 }
-    }
-  };
+function updateMonthLabel() {
+  document.getElementById('month-label').textContent = `${currentYear}年${currentMonth}月`;
 }
 
-function companyToRow(c) {
+function changeMonth(dir) {
+  currentMonth += dir;
+  if(currentMonth > 12){ currentMonth = 1; currentYear++; }
+  if(currentMonth < 1){ currentMonth = 12; currentYear--; }
+  updateMonthLabel();
+  loadMonthlyData();
+}
+
+function getMonthlyKpi(companyId) {
+  const d = monthlyData[`${companyId}`];
+  const zero = () => ({ target:0, actual:0 });
+  if(!d) return {
+    exists: false,
+    population: zero(),
+    kpi: { applications:zero(), first:zero(), second:zero(), final:zero(), offers:zero(), decisions:zero(), revenue:zero() }
+  };
   return {
-    name: c.name, role: c.role, sort_order: c.sort_order||0,
-    pop_target: c.population.target, pop_actual: c.population.actual,
-    app_target: c.kpi.applications.target, app_actual: c.kpi.applications.actual,
-    first_target: c.kpi.first.target, first_actual: c.kpi.first.actual,
-    second_target: c.kpi.second.target, second_actual: c.kpi.second.actual,
-    final_target: c.kpi.final.target, final_actual: c.kpi.final.actual,
-    offers_target: c.kpi.offers.target, offers_actual: c.kpi.offers.actual,
-    decisions_target: c.kpi.decisions.target, decisions_actual: c.kpi.decisions.actual,
-    revenue_target: c.kpi.revenue.target, revenue_actual: c.kpi.revenue.actual
+    exists: true,
+    population: { target:d.pop_target||0, actual:d.pop_actual||0 },
+    kpi: {
+      applications:{ target:d.app_target||0, actual:d.app_actual||0 },
+      first:{ target:d.first_target||0, actual:d.first_actual||0 },
+      second:{ target:d.second_target||0, actual:d.second_actual||0 },
+      final:{ target:d.final_target||0, actual:d.final_actual||0 },
+      offers:{ target:d.offers_target||0, actual:d.offers_actual||0 },
+      decisions:{ target:d.decisions_target||0, actual:d.decisions_actual||0 },
+      revenue:{ target:d.revenue_target||0, actual:d.revenue_actual||0 }
+    }
   };
 }
 
 async function loadCompanies() {
   const { data, error } = await db.from('companies').select('*').order('sort_order').order('id');
-  if (error) { showToast('データ読み込みエラー: ' + error.message); return; }
-  companies = (data||[]).map(rowToCompany);
+  if(error){ showToast('企業データ読み込みエラー'); return; }
+  companies = (data||[]).map(r=>({ id:r.id, name:r.name, role:r.role||'', sort_order:r.sort_order||0 }));
+}
+
+async function loadMonthlyData() {
+  if(companies.length === 0){ renderDashboard(); return; }
+  const ids = companies.map(c=>c.id);
+  const { data, error } = await db.from('company_monthly').select('*')
+    .in('company_id', ids).eq('year', currentYear).eq('month', currentMonth);
+  if(error){ showToast('月次データ読み込みエラー'); return; }
+  monthlyData = {};
+  (data||[]).forEach(r => { monthlyData[`${r.company_id}`] = r; });
   renderDashboard();
+  const activePage = document.querySelector('.page.active');
+  if(activePage && activePage.id === 'page-funnel') renderFunnel();
+  if(activePage && activePage.id === 'page-action') renderAction();
 }
 
-function safePct(n,d){if(!d||d===0)return null;return(n/d)*100;}
-function fmtPct(v){if(v===null||v===undefined)return '-';return v.toFixed(1)+'%';}
-function diffClass(d){if(d===null||d===undefined)return '';if(d<0)return 'diff-neg';if(d===0)return 'diff-zero';return 'diff-pos';}
-function fmtDiff(d){if(d===null||d===undefined)return '-';const c=diffClass(d);const s=d>0?'+':'';return`<span class="${c}">${s}${d}</span>`;}
-function fmtPctDiff(tv,rv){if(tv===null||rv===null||tv===undefined||rv===undefined)return '-';const d=tv-rv;const c=diffClass(d);const s=d>0?'+':'';return`<span class="${c}">${s}${d.toFixed(1)}pt</span>`;}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2500);
+async function init() {
+  updateMonthLabel();
+  await loadCompanies();
+  await loadMonthlyData();
 }
 
-function showPage(id, btn) {
+function safePct(n,d){ if(!d||d===0)return null; return(n/d)*100; }
+function fmtPct(v){ if(v===null||v===undefined)return '-'; return v.toFixed(1)+'%'; }
+function diffClass(d){ if(d===null||d===undefined)return ''; if(d<0)return 'diff-neg'; if(d===0)return 'diff-zero'; return 'diff-pos'; }
+function fmtDiff(d){ if(d===null||d===undefined)return '-'; const c=diffClass(d),s=d>0?'+':''; return`<span class="${c}">${s}${d}</span>`; }
+function fmtPctDiff(tv,rv){ if(tv===null||rv===null||tv===undefined||rv===undefined)return '-'; const d=tv-rv,c=diffClass(d),s=d>0?'+':''; return`<span class="${c}">${s}${d.toFixed(1)}pt</span>`; }
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+function showPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  if(btn) btn.classList.add('active');
-  if(id==='funnel') renderFunnelPage();
-  if(id==='action') renderAction();
+  if(btn)btn.classList.add('active');
+  if(id==='funnel')renderFunnelPage();
+  if(id==='action')renderAction();
 }
 
-function openModal(id) {
-  editId = id;
-  const c = id !== null ? companies.find(x=>x.id===id) : null;
-  document.getElementById('modal-title').textContent = c ? `「${c.name}」を編集` : '企業データ新規登録';
-  buildModalForm(c);
+// 企業マスタ モーダル
+function openModal(id){
+  editId=id;
+  const c=id!==null?companies.find(x=>x.id===id):null;
+  document.getElementById('modal-title').textContent=c?`「${c.name}」を編集`:'企業登録';
+  document.getElementById('modal-fields').innerHTML=`
+    <div class="form-group form-full"><label>企業名</label><input id="f-name" type="text" placeholder="例：株式会社テクノコア" value="${c?c.name:''}"></div>
+    <div class="form-group"><label>担当（RA/CA）</label><input id="f-role" type="text" placeholder="RA or CA" value="${c?c.role:'RA'}"></div>`;
   document.getElementById('modal-bg').classList.add('open');
 }
-function closeModal() { document.getElementById('modal-bg').classList.remove('open'); editId = null; }
+function closeModal(){ document.getElementById('modal-bg').classList.remove('open'); editId=null; }
 
-function buildModalForm(c) {
-  const kpiKeys = Object.keys(KPI_LABELS);
-  let html = `
-    <div class="form-group form-full"><label>企業名</label><input id="f-name" type="text" placeholder="例：株式会社テクノコア" value="${c?c.name:''}"></div>
-    <div class="form-group"><label>担当（RA/CA）</label><input id="f-role" type="text" placeholder="RA or CA" value="${c?c.role:'RA'}"></div>
-    <div class="form-group"></div>
-    <div class="form-group"><label>母集団（目標）</label><input id="f-pop-t" type="number" min="0" value="${c?c.population.target:''}"></div>
-    <div class="form-group"><label>母集団（実績）</label><input id="f-pop-a" type="number" min="0" value="${c?c.population.actual:''}"></div>
-    <div class="form-section">KPI — 目標 / 実績</div>`;
-  kpiKeys.forEach(k => {
-    html += `<div class="form-group"><label>${KPI_LABELS[k]}（目標）</label><input id="f-${k}-t" type="number" min="0" value="${c?c.kpi[k].target:''}"></div>
-    <div class="form-group"><label>${KPI_LABELS[k]}（実績）</label><input id="f-${k}-a" type="number" min="0" value="${c?c.kpi[k].actual:''}"></div>`;
-  });
-  document.getElementById('modal-fields').innerHTML = html;
-}
-
-async function saveCompany() {
-  const name = document.getElementById('f-name').value.trim();
-  if(!name) { alert('企業名を入力してください'); return; }
-  const role = document.getElementById('f-role').value.trim() || 'RA';
-  const kpiKeys = Object.keys(KPI_LABELS);
-  const kpi = {};
-  kpiKeys.forEach(k => { kpi[k] = { target:+document.getElementById(`f-${k}-t`).value||0, actual:+document.getElementById(`f-${k}-a`).value||0 }; });
-  const row = {
-    name, role,
-    sort_order: editId !== null ? (companies.find(c=>c.id===editId)||{}).sort_order||0 : companies.length,
-    pop_target: +document.getElementById('f-pop-t').value||0,
-    pop_actual: +document.getElementById('f-pop-a').value||0,
-    app_target: kpi.applications.target, app_actual: kpi.applications.actual,
-    first_target: kpi.first.target, first_actual: kpi.first.actual,
-    second_target: kpi.second.target, second_actual: kpi.second.actual,
-    final_target: kpi.final.target, final_actual: kpi.final.actual,
-    offers_target: kpi.offers.target, offers_actual: kpi.offers.actual,
-    decisions_target: kpi.decisions.target, decisions_actual: kpi.decisions.actual,
-    revenue_target: kpi.revenue.target, revenue_actual: kpi.revenue.actual
-  };
+async function saveCompany(){
+  const name=document.getElementById('f-name').value.trim();
+  if(!name){ alert('企業名を入力してください'); return; }
+  const role=document.getElementById('f-role').value.trim()||'RA';
   let error;
-  if(editId !== null) {
-    ({error} = await db.from('companies').update(row).eq('id', editId));
+  if(editId!==null){
+    ({error}=await db.from('companies').update({name,role}).eq('id',editId));
   } else {
-    ({error} = await db.from('companies').insert(row));
+    ({error}=await db.from('companies').insert({name,role,sort_order:companies.length}));
   }
-  if(error) { showToast('保存エラー: ' + error.message); return; }
-  showToast(editId !== null ? '更新しました' : '企業を追加しました');
+  if(error){ showToast('保存エラー: '+error.message); return; }
+  showToast(editId!==null?'企業情報を更新しました':'企業を追加しました');
   closeModal();
   await loadCompanies();
+  await loadMonthlyData();
 }
 
-async function deleteCompany(id) {
-  if(!confirm('この企業データを削除しますか？')) return;
-  const {error} = await db.from('companies').delete().eq('id', id);
-  if(error) { showToast('削除エラー: ' + error.message); return; }
+async function deleteCompany(id){
+  if(!confirm('この企業を削除しますか？\n月次データも全て削除されます。'))return;
+  const {error}=await db.from('companies').delete().eq('id',id);
+  if(error){ showToast('削除エラー: '+error.message); return; }
   showToast('削除しました');
   await loadCompanies();
+  await loadMonthlyData();
 }
 
-async function saveOrder() {
-  const updates = companies.map((c,i) => db.from('companies').update({sort_order:i}).eq('id',c.id));
+// 月次KPI モーダル
+function openKpiModal(companyId){
+  editKpiCompanyId=companyId;
+  const c=companies.find(x=>x.id===companyId);
+  const d=getMonthlyKpi(companyId);
+  document.getElementById('kpi-modal-title').textContent=`${c.name} — KPI入力`;
+  document.getElementById('kpi-modal-sub').textContent=`${currentYear}年${currentMonth}月のデータを入力してください`;
+  const kpiKeys=Object.keys(KPI_LABELS);
+  let html=`
+    <div class="form-group"><label>母集団（目標）</label><input id="k-pop-t" type="number" min="0" value="${d.population.target||''}"></div>
+    <div class="form-group"><label>母集団（実績）</label><input id="k-pop-a" type="number" min="0" value="${d.population.actual||''}"></div>
+    <div class="form-section">KPI — 目標 / 実績</div>`;
+  kpiKeys.forEach(k=>{
+    html+=`<div class="form-group"><label>${KPI_LABELS[k]}（目標）</label><input id="k-${k}-t" type="number" min="0" value="${d.kpi[k].target||''}"></div>
+    <div class="form-group"><label>${KPI_LABELS[k]}（実績）</label><input id="k-${k}-a" type="number" min="0" value="${d.kpi[k].actual||''}"></div>`;
+  });
+  document.getElementById('kpi-modal-fields').innerHTML=html;
+  document.getElementById('kpi-modal-bg').classList.add('open');
+}
+function closeKpiModal(){ document.getElementById('kpi-modal-bg').classList.remove('open'); editKpiCompanyId=null; }
+
+async function saveMonthlyKpi(){
+  const kpiKeys=Object.keys(KPI_LABELS);
+  const row={
+    company_id:editKpiCompanyId, year:currentYear, month:currentMonth,
+    pop_target:+document.getElementById('k-pop-t').value||0,
+    pop_actual:+document.getElementById('k-pop-a').value||0,
+    app_target:+document.getElementById('k-applications-t').value||0,
+    app_actual:+document.getElementById('k-applications-a').value||0,
+    first_target:+document.getElementById('k-first-t').value||0,
+    first_actual:+document.getElementById('k-first-a').value||0,
+    second_target:+document.getElementById('k-second-t').value||0,
+    second_actual:+document.getElementById('k-second-a').value||0,
+    final_target:+document.getElementById('k-final-t').value||0,
+    final_actual:+document.getElementById('k-final-a').value||0,
+    offers_target:+document.getElementById('k-offers-t').value||0,
+    offers_actual:+document.getElementById('k-offers-a').value||0,
+    decisions_target:+document.getElementById('k-decisions-t').value||0,
+    decisions_actual:+document.getElementById('k-decisions-a').value||0,
+    revenue_target:+document.getElementById('k-revenue-t').value||0,
+    revenue_actual:+document.getElementById('k-revenue-a').value||0,
+  };
+  const existing=monthlyData[`${editKpiCompanyId}`];
+  let error;
+  if(existing){
+    ({error}=await db.from('company_monthly').update(row).eq('id',existing.id));
+  } else {
+    ({error}=await db.from('company_monthly').insert(row));
+  }
+  if(error){ showToast('保存エラー: '+error.message); return; }
+  showToast('保存しました');
+  closeKpiModal();
+  await loadMonthlyData();
+}
+
+async function saveOrder(){
+  const updates=companies.map((c,i)=>db.from('companies').update({sort_order:i}).eq('id',c.id));
   await Promise.all(updates);
 }
 
-function initDragDrop() {
-  const rows = document.querySelectorAll('#kpi-body .kpi-row');
-  rows.forEach((row, idx) => {
-    row.addEventListener('dragstart', e => { dragSrcIdx=idx; row.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
-    row.addEventListener('dragend', () => { row.classList.remove('dragging'); document.querySelectorAll('#kpi-body .kpi-row').forEach(r=>r.classList.remove('drag-over')); });
-    row.addEventListener('dragover', e => { e.preventDefault(); document.querySelectorAll('#kpi-body .kpi-row').forEach(r=>r.classList.remove('drag-over')); row.classList.add('drag-over'); });
-    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
-    row.addEventListener('drop', async e => {
+function initDragDrop(){
+  const rows=document.querySelectorAll('#kpi-body .kpi-row');
+  rows.forEach((row,idx)=>{
+    row.addEventListener('dragstart',e=>{ dragSrcIdx=idx; row.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    row.addEventListener('dragend',()=>{ row.classList.remove('dragging'); document.querySelectorAll('#kpi-body .kpi-row').forEach(r=>r.classList.remove('drag-over')); });
+    row.addEventListener('dragover',e=>{ e.preventDefault(); document.querySelectorAll('#kpi-body .kpi-row').forEach(r=>r.classList.remove('drag-over')); row.classList.add('drag-over'); });
+    row.addEventListener('dragleave',()=>row.classList.remove('drag-over'));
+    row.addEventListener('drop',async e=>{
       e.preventDefault(); row.classList.remove('drag-over');
-      if(dragSrcIdx===null||dragSrcIdx===idx) return;
-      const moved = companies.splice(dragSrcIdx,1)[0];
+      if(dragSrcIdx===null||dragSrcIdx===idx)return;
+      const moved=companies.splice(dragSrcIdx,1)[0];
       companies.splice(idx,0,moved);
-      dragSrcIdx = null;
+      dragSrcIdx=null;
       renderDashboard();
       await saveOrder();
     });
   });
 }
 
-function renderDashboard() {
-  const totalRevA = companies.reduce((s,c)=>s+c.kpi.revenue.actual,0);
-  const totalRevT = companies.reduce((s,c)=>s+c.kpi.revenue.target,0);
-  const totalDec = companies.reduce((s,c)=>s+c.kpi.decisions.actual,0);
-  const avgUnit = totalDec>0 ? Math.round(totalRevA/totalDec) : 0;
-  const totalApp = companies.reduce((s,c)=>s+c.kpi.applications.actual,0);
+function renderDashboard(){
+  const allKpi=companies.map(c=>getMonthlyKpi(c.id));
+  const totalRevA=allKpi.reduce((s,d)=>s+d.kpi.revenue.actual,0);
+  const totalRevT=allKpi.reduce((s,d)=>s+d.kpi.revenue.target,0);
+  const totalDec=allKpi.reduce((s,d)=>s+d.kpi.decisions.actual,0);
+  const avgUnit=totalDec>0?Math.round(totalRevA/totalDec):0;
+  const totalApp=allKpi.reduce((s,d)=>s+d.kpi.applications.actual,0);
 
-  document.getElementById('summary-metrics').innerHTML = `
+  document.getElementById('summary-metrics').innerHTML=`
     <div class="metric-card"><div class="metric-label">総売上実績（万円）</div><div class="metric-val">${totalRevA.toLocaleString()}</div><div class="metric-sub">目標 ${totalRevT.toLocaleString()}</div></div>
-    <div class="metric-card"><div class="metric-label">総決定数</div><div class="metric-val">${totalDec}</div><div class="metric-sub">目標 ${companies.reduce((s,c)=>s+c.kpi.decisions.target,0)}</div></div>
+    <div class="metric-card"><div class="metric-label">総決定数</div><div class="metric-val">${totalDec}</div><div class="metric-sub">目標 ${allKpi.reduce((s,d)=>s+d.kpi.decisions.target,0)}</div></div>
     <div class="metric-card"><div class="metric-label">平均単価（万円）</div><div class="metric-val">${avgUnit.toLocaleString()}</div><div class="metric-sub">管理 ${companies.length}社</div></div>
-    <div class="metric-card"><div class="metric-label">総応募数</div><div class="metric-val">${totalApp}</div><div class="metric-sub">目標 ${companies.reduce((s,c)=>s+c.kpi.applications.target,0)}</div></div>`;
+    <div class="metric-card"><div class="metric-label">総応募数</div><div class="metric-val">${totalApp}</div><div class="metric-sub">目標 ${allKpi.reduce((s,d)=>s+d.kpi.applications.target,0)}</div></div>`;
 
-  const kpiKeys = Object.keys(KPI_LABELS);
-  let head = '<th style="width:28px;"></th><th>企業名</th>';
-  kpiKeys.forEach(k => { head += `<th colspan="3" style="text-align:center;background:#fafaf8;">${KPI_LABELS[k]}</th>`; });
-  head += '<th></th>';
-  document.getElementById('kpi-head').innerHTML = head;
+  const kpiKeys=Object.keys(KPI_LABELS);
+  let head='<th style="width:28px;"></th><th>企業名</th>';
+  kpiKeys.forEach(k=>{ head+=`<th colspan="3" style="text-align:center;background:#fafaf8;">${KPI_LABELS[k]}</th>`; });
+  head+='<th></th>';
+  document.getElementById('kpi-head').innerHTML=head;
 
-  let body = `<tr><td></td><td></td>${kpiKeys.map(()=>`<td style="font-size:10px;color:#aaa;text-align:center;">目標</td><td style="font-size:10px;color:#aaa;text-align:center;">実績</td><td style="font-size:10px;color:#aaa;text-align:center;">差異</td>`).join('')}<td></td></tr>`;
-  companies.forEach((c,idx) => {
-    let row = `<tr class="kpi-row" draggable="true">
+  let body=`<tr><td></td><td></td>${kpiKeys.map(()=>`<td style="font-size:10px;color:#aaa;text-align:center;">目標</td><td style="font-size:10px;color:#aaa;text-align:center;">実績</td><td style="font-size:10px;color:#aaa;text-align:center;">差異</td>`).join('')}<td></td></tr>`;
+  companies.forEach(c=>{
+    const d=getMonthlyKpi(c.id);
+    let row=`<tr class="kpi-row" draggable="true">
       <td style="padding:4px 6px;vertical-align:middle;"><span class="drag-handle" title="ドラッグで並び替え">&#9776;</span></td>
-      <td style="font-weight:500;vertical-align:middle;">${c.name}</td>`;
-    kpiKeys.forEach(k => {
-      const t=c.kpi[k].target, a=c.kpi[k].actual, d=a-t;
-      row += `<td>${t.toLocaleString()}</td><td>${a.toLocaleString()}</td><td>${fmtDiff(d)}</td>`;
+      <td style="font-weight:500;vertical-align:middle;">${c.name}${!d.exists?'<span class="no-data-badge">未入力</span>':''}</td>`;
+    kpiKeys.forEach(k=>{
+      const t=d.kpi[k].target,a=d.kpi[k].actual,diff=a-t;
+      row+=`<td>${t.toLocaleString()}</td><td>${a.toLocaleString()}</td><td>${fmtDiff(diff)}</td>`;
     });
-    row += `<td style="white-space:nowrap;vertical-align:middle;"><button class="btn btn-sm" onclick="openModal(${c.id})">編集</button> <button class="btn btn-danger btn-sm" onclick="deleteCompany(${c.id})">削除</button></td></tr>`;
-    body += row;
+    row+=`<td style="white-space:nowrap;vertical-align:middle;">
+      <button class="btn btn-primary btn-sm" onclick="openKpiModal(${c.id})" style="margin-right:4px;">KPI入力</button>
+      <button class="btn btn-sm" onclick="openModal(${c.id})">編集</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteCompany(${c.id})" style="margin-left:4px;">削除</button>
+    </td></tr>`;
+    body+=row;
   });
-  if(companies.length === 0) body += '<tr><td colspan="30" style="text-align:center;padding:24px;color:#aaa;">企業データがありません。「+ 企業追加」から登録してください。</td></tr>';
-  document.getElementById('kpi-body').innerHTML = body;
+  if(companies.length===0) body+='<tr><td colspan="30" style="text-align:center;padding:24px;color:#aaa;">企業データがありません。「+ 企業追加」から登録してください。</td></tr>';
+  document.getElementById('kpi-body').innerHTML=body;
   initDragDrop();
 
-  let rHead = '<th>企業名</th>';
-  RATE_DEFS.forEach(r => { rHead += `<th colspan="3" style="text-align:center;background:#fafaf8;">${r.key}</th>`; });
-  document.getElementById('rate-head').innerHTML = rHead;
+  let rHead='<th>企業名</th>';
+  RATE_DEFS.forEach(r=>{ rHead+=`<th colspan="3" style="text-align:center;background:#fafaf8;">${r.key}</th>`; });
+  document.getElementById('rate-head').innerHTML=rHead;
 
-  let rBody = `<tr><td></td>${RATE_DEFS.map(()=>`<td style="font-size:10px;color:#aaa;text-align:center;">目標率</td><td style="font-size:10px;color:#aaa;text-align:center;">実績率</td><td style="font-size:10px;color:#aaa;text-align:center;">差異</td>`).join('')}</tr>`;
-  companies.forEach(c => {
-    let row = `<tr><td style="font-weight:500;">${c.name}</td>`;
-    RATE_DEFS.forEach(r => {
-      const tv=r.fn(c,'target'), rv=r.fn(c,'actual');
-      row += `<td>${fmtPct(tv)}</td><td>${fmtPct(rv)}</td><td>${fmtPctDiff(tv,rv)}</td>`;
+  let rBody=`<tr><td></td>${RATE_DEFS.map(()=>`<td style="font-size:10px;color:#aaa;text-align:center;">目標率</td><td style="font-size:10px;color:#aaa;text-align:center;">実績率</td><td style="font-size:10px;color:#aaa;text-align:center;">差異</td>`).join('')}</tr>`;
+  companies.forEach(c=>{
+    const d=getMonthlyKpi(c.id);
+    let row=`<tr><td style="font-weight:500;">${c.name}</td>`;
+    RATE_DEFS.forEach(r=>{
+      const tv=r.fn(d.kpi,d.population,'target'), rv=r.fn(d.kpi,d.population,'actual');
+      row+=`<td>${fmtPct(tv)}</td><td>${fmtPct(rv)}</td><td>${fmtPctDiff(tv,rv)}</td>`;
     });
-    row += '</tr>';
-    rBody += row;
+    row+='</tr>';
+    rBody+=row;
   });
-  document.getElementById('rate-body').innerHTML = rBody;
+  document.getElementById('rate-body').innerHTML=rBody;
 }
 
-function renderFunnelPage() {
-  const sel = document.getElementById('funnel-select');
-  const prev = sel.value;
-  sel.innerHTML = companies.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-  if(prev) sel.value = prev;
+function renderFunnelPage(){
+  const sel=document.getElementById('funnel-select');
+  const prev=sel.value;
+  sel.innerHTML=companies.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  if(prev)sel.value=prev;
   renderFunnel();
 }
 
-function renderFunnel() {
-  const id = +document.getElementById('funnel-select').value;
-  const c = companies.find(x=>x.id===id);
-  if(!c) { document.getElementById('funnel-bars').innerHTML=''; return; }
-  const steps = [
+function renderFunnel(){
+  const id=+document.getElementById('funnel-select').value;
+  const c=companies.find(x=>x.id===id);
+  if(!c){ document.getElementById('funnel-bars').innerHTML=''; return; }
+  const d=getMonthlyKpi(c.id);
+  document.getElementById('funnel-title').textContent=`${c.name} ／ ${currentYear}年${currentMonth}月 — 歩留まりファネル`;
+  const steps=[
     {label:'応募',k:'applications'},{label:'一次面接',k:'first'},{label:'二次面接',k:'second'},
     {label:'最終面接',k:'final'},{label:'内定',k:'offers'},{label:'決定',k:'decisions'}
   ];
-  const maxT=c.kpi.applications.target||1, maxA=c.kpi.applications.actual||1;
+  const maxT=d.kpi.applications.target||1, maxA=d.kpi.applications.actual||1;
   const COLORS=['#3b82f6','#10b981','#f59e0b','#ec4899','#8b5cf6','#22c55e'];
   let html='';
-  steps.forEach((s,i) => {
-    const tv=c.kpi[s.k].target, av=c.kpi[s.k].actual;
+  steps.forEach((s,i)=>{
+    const tv=d.kpi[s.k].target, av=d.kpi[s.k].actual;
     const tpct=Math.min(100,(tv/maxT)*100), apct=Math.min(100,(av/maxA)*100);
     const diff=av-tv, cls=diff>=0?'diff-pos':'diff-neg', sign=diff>=0?'+':'';
-    html += `<div class="funnel-bar-wrap">
+    html+=`<div class="funnel-bar-wrap">
       <div class="funnel-label"><span>${s.label}</span><span>目標 <b>${tv}</b> ／ 実績 <b>${av}</b> <span class="${cls}">${sign}${diff}</span></span></div>
       <div class="funnel-track"><div class="funnel-bar-target" style="width:${tpct}%;background:${COLORS[i]};"></div><div class="funnel-bar" style="width:${apct}%;background:${COLORS[i]};"></div></div>
     </div>`;
   });
-  document.getElementById('funnel-bars').innerHTML = html;
+  document.getElementById('funnel-bars').innerHTML=html;
 
-  const rates = [
-    {label:'応募率',tv:safePct(c.kpi.applications.target,c.population.target),av:safePct(c.kpi.applications.actual,c.population.actual)},
-    {label:'一次通過率',tv:safePct(c.kpi.second.target,c.kpi.first.target),av:safePct(c.kpi.second.actual,c.kpi.first.actual)},
-    {label:'二次通過率',tv:safePct(c.kpi.final.target,c.kpi.second.target),av:safePct(c.kpi.final.actual,c.kpi.second.actual)},
-    {label:'最終通過率',tv:safePct(c.kpi.offers.target,c.kpi.final.target),av:safePct(c.kpi.offers.actual,c.kpi.final.actual)},
-    {label:'内定承諾率',tv:safePct(c.kpi.decisions.target,c.kpi.offers.target),av:safePct(c.kpi.decisions.actual,c.kpi.offers.actual)}
+  const rates=[
+    {label:'応募率',tv:safePct(d.kpi.applications.target,d.population.target),av:safePct(d.kpi.applications.actual,d.population.actual)},
+    {label:'一次通過率',tv:safePct(d.kpi.second.target,d.kpi.first.target),av:safePct(d.kpi.second.actual,d.kpi.first.actual)},
+    {label:'二次通過率',tv:safePct(d.kpi.final.target,d.kpi.second.target),av:safePct(d.kpi.final.actual,d.kpi.second.actual)},
+    {label:'最終通過率',tv:safePct(d.kpi.offers.target,d.kpi.final.target),av:safePct(d.kpi.offers.actual,d.kpi.final.actual)},
+    {label:'内定承諾率',tv:safePct(d.kpi.decisions.target,d.kpi.offers.target),av:safePct(d.kpi.decisions.actual,d.kpi.offers.actual)}
   ];
   let bn='';
-  rates.forEach(r => {
+  rates.forEach(r=>{
     if(r.tv!==null&&r.av!==null){
       const gap=r.av-r.tv;
       if(gap<=-10) bn+=`<div class="action-row"><div class="action-step"><span class="badge badge-red">${r.label}</span></div><div class="action-detail">目標比 <b style="color:#b91c1c;">${gap.toFixed(1)}pt</b> 未達。優先改善対象。</div></div>`;
@@ -427,44 +509,45 @@ function renderFunnel() {
       else bn+=`<div class="action-row"><div class="action-step"><span class="badge badge-green">${r.label}</span></div><div class="action-detail">目標達成（${gap.toFixed(1)}pt）</div></div>`;
     }
   });
-  document.getElementById('bottleneck-analysis').innerHTML = bn||'<p style="font-size:12px;color:#aaa;padding:8px 0;">分析対象データが不足しています</p>';
+  document.getElementById('bottleneck-analysis').innerHTML=bn||'<p style="font-size:12px;color:#aaa;padding:8px 0;">KPIを入力してください</p>';
 }
 
-function renderAction() {
-  const actionMap = [
-    {step:'応募数不足',cond:c=>c.kpi.applications.actual<c.kpi.applications.target*0.8,
+function renderAction(){
+  const actionMap=[
+    {step:'応募数不足',cond:d=>d.kpi.applications.actual<d.kpi.applications.target*0.8,
      actions:[['優先','母集団リスト追加・媒体見直し・スカウト強化'],['推奨','RAとCAの訴求ポイント再確認MTG'],['補足','求人票の魅力度向上（給与・ポジション訴求）']]},
-    {step:'一次通過率低',cond:c=>{const r=safePct(c.kpi.second.actual,c.kpi.first.actual),t=safePct(c.kpi.second.target,c.kpi.first.target);return r!==null&&t!==null&&(r-t)<-10;},
+    {step:'一次通過率低',cond:d=>{const r=safePct(d.kpi.second.actual,d.kpi.first.actual),t=safePct(d.kpi.second.target,d.kpi.first.target);return r!==null&&t!==null&&(r-t)<-10;},
      actions:[['優先','推薦文の精度向上・マッチング基準の再明確化'],['推奨','面接前CAウォームアップ強化・志望度確認コール'],['補足','企業の選考基準ヒアリング再実施']]},
-    {step:'二次通過率低',cond:c=>{const r=safePct(c.kpi.final.actual,c.kpi.second.actual),t=safePct(c.kpi.final.target,c.kpi.second.target);return r!==null&&t!==null&&(r-t)<-10;},
+    {step:'二次通過率低',cond:d=>{const r=safePct(d.kpi.final.actual,d.kpi.second.actual),t=safePct(d.kpi.final.target,d.kpi.second.target);return r!==null&&t!==null&&(r-t)<-10;},
      actions:[['優先','二次面接後フィード収集と原因分析'],['推奨','スキルギャップの早期特定と対策'],['補足','候補者の懸念点解消ロールプレイ']]},
-    {step:'内定承諾率低',cond:c=>{const r=safePct(c.kpi.decisions.actual,c.kpi.offers.actual),t=safePct(c.kpi.decisions.target,c.kpi.offers.target);return r!==null&&t!==null&&(r-t)<-10;},
+    {step:'内定承諾率低',cond:d=>{const r=safePct(d.kpi.decisions.actual,d.kpi.offers.actual),t=safePct(d.kpi.decisions.target,d.kpi.offers.target);return r!==null&&t!==null&&(r-t)<-10;},
      actions:[['優先','内定後24時間以内クロージング'],['推奨','競合オファー状況ヒアリングと対策'],['補足','入社後キャリアイメージ明確化面談']]}
   ];
   let html='';
-  actionMap.forEach(a => {
-    html += `<div class="analysis-box"><div style="font-size:12px;font-weight:500;margin-bottom:6px;"><span class="badge badge-red">${a.step}</span></div><div style="font-size:11px;color:#666;line-height:1.9;">`;
-    a.actions.forEach(([p,txt]) => {
+  actionMap.forEach(a=>{
+    html+=`<div class="analysis-box"><div style="font-size:12px;font-weight:500;margin-bottom:6px;"><span class="badge badge-red">${a.step}</span></div><div style="font-size:11px;color:#666;line-height:1.9;">`;
+    a.actions.forEach(([p,txt])=>{
       const cls=p==='優先'?'priority-high':p==='推奨'?'priority-mid':'priority-low';
-      html += `<span class="priority-tag ${cls}">${p}</span>${txt}<br>`;
+      html+=`<span class="priority-tag ${cls}">${p}</span>${txt}<br>`;
     });
-    html += `</div></div>`;
+    html+=`</div></div>`;
   });
-  document.getElementById('action-list').innerHTML = html;
+  document.getElementById('action-list').innerHTML=html;
 
   let cHtml='';
-  companies.forEach(c => {
+  companies.forEach(c=>{
+    const d=getMonthlyKpi(c.id);
     const issues=[];
-    if(c.kpi.applications.actual<c.kpi.applications.target*0.8) issues.push('応募数不足');
-    const r1=safePct(c.kpi.second.actual,c.kpi.first.actual),t1=safePct(c.kpi.second.target,c.kpi.first.target);
-    if(r1!==null&&t1!==null&&(r1-t1)<-10) issues.push('一次通過率低');
-    const r2=safePct(c.kpi.final.actual,c.kpi.second.actual),t2=safePct(c.kpi.final.target,c.kpi.second.target);
-    if(r2!==null&&t2!==null&&(r2-t2)<-10) issues.push('二次通過率低');
-    const r3=safePct(c.kpi.decisions.actual,c.kpi.offers.actual),t3=safePct(c.kpi.decisions.target,c.kpi.offers.target);
-    if(r3!==null&&t3!==null&&(r3-t3)<-10) issues.push('承諾率低');
-    const revD=c.kpi.revenue.actual-c.kpi.revenue.target;
-    const decD=c.kpi.decisions.actual-c.kpi.decisions.target;
-    cHtml += `<div class="analysis-box">
+    if(d.kpi.applications.actual<d.kpi.applications.target*0.8)issues.push('応募数不足');
+    const r1=safePct(d.kpi.second.actual,d.kpi.first.actual),t1=safePct(d.kpi.second.target,d.kpi.first.target);
+    if(r1!==null&&t1!==null&&(r1-t1)<-10)issues.push('一次通過率低');
+    const r2=safePct(d.kpi.final.actual,d.kpi.second.actual),t2=safePct(d.kpi.final.target,d.kpi.second.target);
+    if(r2!==null&&t2!==null&&(r2-t2)<-10)issues.push('二次通過率低');
+    const r3=safePct(d.kpi.decisions.actual,d.kpi.offers.actual),t3=safePct(d.kpi.decisions.target,d.kpi.offers.target);
+    if(r3!==null&&t3!==null&&(r3-t3)<-10)issues.push('承諾率低');
+    const revD=d.kpi.revenue.actual-d.kpi.revenue.target;
+    const decD=d.kpi.decisions.actual-d.kpi.decisions.target;
+    cHtml+=`<div class="analysis-box">
       <div style="font-size:12px;font-weight:500;margin-bottom:4px;">${c.name}</div>
       <div style="font-size:11px;line-height:1.9;">
         ${issues.length?issues.map(i=>`<span class="badge badge-red">${i}</span>`).join(' '):'<span class="badge badge-green">課題なし</span>'}<br>
@@ -473,10 +556,10 @@ function renderAction() {
       </div>
     </div>`;
   });
-  document.getElementById('action-company-list').innerHTML = cHtml || '<p style="font-size:12px;color:#aaa;">企業データがありません</p>';
+  document.getElementById('action-company-list').innerHTML=cHtml||'<p style="font-size:12px;color:#aaa;">企業データがありません</p>';
 }
 
-loadCompanies();
+init();
 </script>
 </body>
 </html>
